@@ -9,6 +9,8 @@ using System.Web;
 using dotnet_ws;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
+using System.Text;
+using System.Linq;
 
 namespace dotnet_ws.Controllers
 {
@@ -37,26 +39,58 @@ namespace dotnet_ws.Controllers
         }
 
 
+
+
         [HttpGet]
         public async Task<ActionResult<List<Atm>>> Get()
         {
              return Ok(await _context.Atms.ToListAsync());
         }
 
+
+        public class UpdateResponse
+        {
+            public List<string> successfull = new List<string>();
+            public List<string> error = new List<string>();
+            public int totalAdded = 0;
+            public int totalError = 0;
+        };
+
         [HttpGet]
         [Route("/api/update")]
-        public async Task<ActionResult<List<Atm>>> Update()
+        public async Task<ActionResult> Update()
         {
             var fetchedAtms = await FetchAtms("https://atm-id-app.herokuapp.com/atm");
             List<Atm> listAtm = fetchedAtms.results.rows;
 
+            UpdateResponse updatedRecords = new UpdateResponse();
+
             foreach (var atm in listAtm)
             {
-                _context.Atms.Add(atm);
-                await _context.SaveChangesAsync();
+                try
+                {
+                    _context.Atms.Add(atm);
+                    var dbResponse = await _context.SaveChangesAsync();
+                    if(dbResponse == 1)
+                    {
+                        updatedRecords.successfull.Add(atm.globalatmid.ToString());
+                        updatedRecords.totalAdded = updatedRecords.totalAdded + 1;
+                    }
+                }
+                catch (Exception exc)
+                {
+                    updatedRecords.error.Add(atm.globalatmid.ToString());
+                    updatedRecords.totalAdded = updatedRecords.totalError + 1;
+                }
+                finally
+                {
+
+                }
             }
 
-            return Ok(await _context.Atms.ToListAsync());
+            string serialized = JsonConvert.SerializeObject(updatedRecords);
+
+            return Ok(serialized);
         }
 
         [HttpGet]
